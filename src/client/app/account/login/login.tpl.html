@@ -11,12 +11,12 @@
       <div class="row">
         <div class="input-field col s12">
           <i class="mdi-action-account-circle prefix"></i>
-          <input class="validate" id="login-email" name="email" type="email" ng-model="login.email" required>
+          <input class="validate" id="login-email" name="email" type="email" ng-model="login.user.email" required>
           <label for="login-email">Email Address</label>
         </div>
         <div class="input-field col s12">
           <i class="mdi-communication-vpn-key prefix"></i>
-          <input class="validate" id="login-password" value="" type="password"  ng-model="login.password" required>
+          <input class="validate" id="login-password" value="" type="password"  ng-model="login.user.password" required>
           <label for="login-password">Password</label>
         </div>
         <div class="input-field col s12 center">
@@ -31,12 +31,6 @@
         	</div>
       </div>
     </form>
-     <button class="btn btn-block btn-foursquare" ng-click="login.authenticate('google')">
-      <i class="fa fa-foursquare"></i> Sign in with Google
-    </button>
-     <button class="btn btn-block btn-foursquare" ng-click="login.authenticate('battlenet')">
-      <i class="fa fa-foursquare"></i> Sign in with Battlenet
-    </button>
     </div>
   </div>
 </div>

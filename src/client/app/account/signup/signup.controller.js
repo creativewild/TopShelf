@@ -2,7 +2,7 @@
   'use strict';
 
   /** @ngdoc controller
-   * @name app.account.controller:SignupController
+   * @name app.account.controller:SignupCtrl
    *
    * @propertyOf app.account
    *
@@ -11,28 +11,41 @@
    */
   angular
     .module('app.account')
-    .controller('SignupController', SignupController);
+    .controller('SignupCtrl', SignupCtrl);
 
-  SignupController.$inject = ['$auth'];
+  SignupCtrl.$inject = ['Auth', '$location', '$window', '$timeout'];
   /* @ngInject */
-  function SignupController($auth) {
+  function SignupCtrl(Auth, $location, $window, $timeout) {
     var vm = this;
+    vm.user = {};
+    vm.errors = {};
 
-    vm.signup = function() {
-      $auth.signup({
-        displayName: vm.displayName,
-        email: vm.email,
-        password: vm.password
-      }).catch(function(response) {
-        if (typeof response.data.message === 'object') {
-          angular.forEach(response.data.message, function(message) {
-            Materialize.toast(message, 3000);
+    vm.signup = function(signupForm) {
+      if (signupForm.$valid) {
+        Auth.createUser({
+            username: vm.user.username,
+            email: vm.user.email,
+            password: vm.user.password
+          }).then(function() {
+            // Account created, redirect to home
+            $timeout(function() {
+              $location.path('/');
+            });
+          })
+          .catch(function(err) {
+            err = err.data;
+
+            vm.errors = {};
+            // Update validity of form fields that match the mongoose errors
+            angular.forEach(err.errors, function(error, field) {
+              signupForm[field].$setValidity('mongoose', false);
+              vm.errors[field] = error.message;
+            });
           });
-        } else {
-          Materialize.toast(response, 3000);
-          console.log('error');
-        }
-      });
+      }
     };
+    vm.loginOauth = function(provider) {
+      $window.location.href = '/auth/' + provider;
+    }
   }
 }());

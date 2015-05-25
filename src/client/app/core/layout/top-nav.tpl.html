@@ -24,15 +24,15 @@
         <a class="waves-effect waves-blue" ui-sref="guild.roster">
         <i id="nav-txt" class="mdi-communication-contacts"> Roster</i></a>
       </li>
-      <li class="bold" ng-if="!vm.isAuthenticated()">
+      <li class="bold" ng-if="!isLoggedIn">
         <a class="waves-effect waves-blue" ui-sref="account.signup">
         <i id="nav-txt" class="mdi-action-exit-to-app"> Sign up</i></a>
       </li>
-      <li class="bold" ng-if="!vm.isAuthenticated()">
+      <li class="bold" ng-if="!isLoggedIn">
         <a class="waves-effect waves-blue" ui-sref="account.login">
         <i id="nav-txt" class="mdi-action-account-circle"> Login</i></a>
       </li>
-      <li ng-if="vm.isAuthenticated()">
+      <li ng-if="isLoggedIn">
        <a href='javascript:void(0);'
           data-activates='accountDropdown'
           data-hover="true" dropdown><i class="medium mdi-action-account-box"></i></a>

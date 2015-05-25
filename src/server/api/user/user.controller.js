@@ -1,18 +1,24 @@
 'use strict';
 
-var _ = require('lodash'); //jshint ignore:line
-var User = require('./user.model'),
-  config = require('../../config/environment'),
-  jwt = require('jwt-simple');
+var passport = require('passport');
+var config = require('../../config/environment');
+var jwt = require('jsonwebtoken');
+var User = require('./user.model');
+var Roles = require('../roles/roles.model');
+var CMS = require('../../components/CMS');
+var collection = new CMS(User);
 
 function handleError(res, err) {
-  return res.status(500).send(err);
+  return res.status(500).json(err);
 }
 
 function validationError(res, err) {
   res.status(422).json(err);
 }
 
+exports.update = function(req, res) {
+  collection.update(req, res);
+};
 /**
  * @api {post} /users Create a new user
  * @apiVersion 0.1.0
@@ -23,92 +29,116 @@ function validationError(res, err) {
  * @apiParam {String} email user's email.
  *
  */
-exports.create = function(req, res) {
-  User.create(req.body, function(err, user) {
-    if (err) {
-      return handleError(res, err);
-    }
+/**
+ * Get list of users
+ * restriction: 'admin'
+ */
+exports.index = function(req, res) {
+  User.find({}, '-salt -hashedPassword', function(err, users) {
+    if (err) return res.send(500, err);
+    res.json(200, users);
+  });
+};
+
+/**
+ * Creates a new user
+ */
+exports.create = function(req, res, next) {
+  var newUser = new User(req.body);
+  newUser.provider = 'local';
+  newUser.save(function(err, user) {
+    if (err) return validationError(res, err);
     var token = jwt.sign({
-        _id: user._id
-      },
-      config.secrets.session, {
-        expiresInMinutes: 60 * 5
-      }
-    );
-    res.status(201).json({
-      token: token,
-      user: user
+      _id: user._id
+    }, config.secrets.session, {
+      expiresInMinutes: 60 * 5
+    });
+    res.json({
+      token: token
     });
   });
 };
 
 /**
- * @api {get} /users/me Get the logged user
- * @apiVersion 0.1.0
- * @apiName GetMe
- * @apiDescription Return the user matching the authenticated user.
- * @apiGroup User
- *
+ * Get a single user
  */
-exports.getMe = function(req, res) {
-  User.findById(req.user, function(err, user) {
-    res.send(user);
+exports.show = function(req, res, next) {
+  var userId = req.params.id;
+
+  User.findById(userId, function(err, user) {
+    if (err) return next(err);
+    if (!user) return res.send(401);
+    res.json(user.profile);
   });
 };
 
-exports.editMe = function(req, res) {
-  var oldPass = req.body.oldPassword ? String(req.body.oldPassword) : null;
-  var newPass = req.body.newPassword ? String(req.body.newPassword) : null;
+/**
+ * Deletes a user
+ * restriction: 'admin'
+ */
+exports.destroy = function(req, res) {
+  User.findByIdAndRemove(req.params.id, function(err, user) {
+    if (err) return res.send(500, err);
+    return res.send(204);
+  });
+};
 
-  User.findById(req.user, '+password', function(err, user) {
-    if (!user) {
-      return res.status(400).send({
-        message: 'User not found'
-      });
-    }
-    user.displayName = req.body.displayName || user.displayName;
-    user.email = req.body.email || user.email;
-    if (newPass) {
+/**
+ * Change a users password
+ */
+exports.changePassword = function(req, res, next) {
+  var userId = req.user._id;
+  var oldPass = String(req.body.oldPassword);
+  var newPass = String(req.body.newPassword);
+
+  User.findById(userId, function(err, user) {
+    if (user.authenticate(oldPass)) {
       user.password = newPass;
-    }
-    // Users with local authentication require password.
-    if (user.providers.indexOf('local') !== -1) {
-      user.comparePassword(oldPass, function(err, isMatch) {
-        console.log(arguments);
-        if (!isMatch) {
-          return res.status(401).send({
-            message: 'Wrong password'
-          });
-        }
-        user.save(function(err) {
-          if (err) {
-            validationError(res, err);
-          }
-          res.status(200).end();
-        });
+      user.save(function(err) {
+        if (err) return validationError(res, err);
+        res.send(200);
       });
     } else {
-      if (newPass) {
-        user.providers.push('local');
-      }
-      user.save(function(err) {
-        if (err) {
-          validationError(res, err);
-        }
-        res.status(200).end();
-      });
+      res.send(403);
     }
   });
 };
 
-exports.list = function(req, res) {
-  User.find({}, function(err, users) {
-    var userArr = [];
-
-    users.forEach(function(user) {
-      userArr.push(user);
+/**
+ * Get my info
+ */
+exports.me = function(req, res, next) {
+  var userId = req.user._id;
+  User.findOne({
+    _id: userId
+  }, '-salt -hashedPassword', function(err, user) { // don't ever give out the password or salt
+    if (err) return next(err);
+    if (!user) return res.json(401);
+    var user = user.toJSON();
+    Roles.findOne({
+      role: user.role
+    }, function(error, found) {
+      if (!found) {
+        res.send(401);
+        return false;
+      }
+      var permissions = [];
+      for (var permission in found.permissions) {
+        if (found.permissions.hasOwnProperty(permission)) {
+          if (found.permissions[permission] === true) {
+            permissions.push(permission);
+          }
+        }
+      }
+      user.permissions = permissions;
+      res.json(user);
     });
-
-    res.send(userArr);
   });
+};
+
+/**
+ * Authentication callback
+ */
+exports.authCallback = function(req, res, next) {
+  res.redirect('/');
 };

@@ -13,74 +13,27 @@
     .module('app.account')
     .controller('AccountCtrl', AccountCtrl);
 
-  AccountCtrl.$inject = ['$auth', 'userData', 'User'];
+  AccountCtrl.$inject = ['Auth', 'User'];
 
-  function AccountCtrl($auth, userData, User) {
+  function AccountCtrl(Auth, User) {
     var vm = this;
-    /**
-     * Get user's profile information.
-     */
-    vm.getProfile = function() {
-      userData.getProfile().success(function(data) {
-        vm.user = data;
-        vm.administrator = vm.user.isAdmin;
-        vm.linkedAccounts = User.getLinkedAccounts(vm.user, 'account');
-      })
-        .error(function(error) {
-          Materialize.toast(error, 3000);
+
+    vm.errors = {};
+
+    vm.changePassword = function(pwordForm) {
+      vm.submitted = true;
+      if (pwordForm.$valid) {
+        Auth.changePassword(vm.user.oldPassword, vm.user.newPassword)
+        .then (function() {
+          Materialize.toast('Password changed successfully!');
+        })
+        .catch(function() {
+          pwordForm.password.$setValidity('mongoose', false);
+          vm.errors.other = 'Incorrect password';
+          vm.message = '';
         });
+      }
     };
 
-    /**
-     * Update user's profile information.
-     */
-    vm.updateProfile = function() {
-      userData.updateProfile({
-        displayName: vm.user.displayName,
-        email: vm.user.email,
-        newPassword: vm.user.newPassword,
-        oldPassword: vm.user.oldPassword
-      }).then(function() {
-        Materialize.toast('Successfully updated your account info', 3000);
-      })
-      .then(function() {
-        vm.getProfile();
-      })
-      .catch(function(response) {
-        Materialize.toast(response, 3000);
-      });
-    };
-
-    /**
-     * Link third-party provider.
-     */
-    vm.link = function(provider) {
-      $auth.link(provider).then(function() {
-        Materialize.toast('Successfully linked with your account', 3000);
-      })
-        .then(function() {
-          vm.getProfile();
-        })
-        .catch(function(response) {
-          Materialize.toast(response, 3000);
-        });
-    };
-
-    /**
-     * Unlink third-party provider.
-     */
-    vm.unlink = function(provider) {
-      $auth.unlink(provider)
-        .then(function() {
-          Materialize.toast('Successfully unlinked from your account', 3000);
-        })
-        .then(function() {
-          vm.getProfile();
-        })
-        .catch(function(response) {
-          Materialize.toast(response, 3000);
-        });
-    };
-    vm.getProfile();
   }
 })();

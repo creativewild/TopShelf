@@ -10,7 +10,7 @@ var router = express.Router();
 module.exports = router;
 
 // check if the authenticated user has at least the 'admin' role
-var isAdmin = auth.ensureAdmin;
+//var isAdmin = auth.ensureAdmin;
 
 router.param('article', function(req, res, next, id) {
   var query = Article.findById(id);
@@ -33,7 +33,7 @@ router.param('author', controller.getListByAuthor);
 router.get('/', controller.list);
 router.get('/author/:author', controller.getListByAuthor);
 router.get('/:id', controller.show);
-router.post('/', isAdmin, controller.createArticle);
-router.put('/:id', isAdmin, controller.updateArticle);
-router.patch('/:id', isAdmin, controller.updateArticle);
-router.delete('/:id', isAdmin, controller.destroy);
+router.post('/', controller.createArticle);
+router.put('/:id', controller.updateArticle);
+router.patch('/:id',  controller.updateArticle);
+router.delete('/:id', controller.destroy);

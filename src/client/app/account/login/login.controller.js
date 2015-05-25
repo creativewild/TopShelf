@@ -1,4 +1,4 @@
-(function () {
+(function() {
   'use strict';
 
   /** @ngdoc controller
@@ -9,36 +9,29 @@
    */
   angular
     .module('app.account')
-    .controller('LoginController', LoginController);
+    .controller('LoginCtrl', LoginCtrl);
 
-  LoginController.$inject = ['$auth', '$rootScope', '$location', 'OAUTH'];
+  LoginCtrl.$inject = ['Auth', '$location', '$window',
+    '$rootScope', '$timeout'
+  ];
   /* @ngInject */
-  function LoginController($auth, OAUTH, $rootScope, $location) {
+  function LoginCtrl(Auth, $location, $window, $rootScope, $timeout) {
     var vm = this;
 
-    vm.error = false;
-
-    vm.logins = OAUTH.LOGINS;
-    //$scope.login = login;
-
-    /**
-     * Check if user is authenticated
-     *
-     * @returns {boolean}
-     */
-    vm.isAuthenticated = function() {
-      return $auth.isAuthenticated();
-    };
-
-    vm.login = function() {
-      $auth.login({
-        email: vm.email,
-        password: vm.password
-      })
-      .then(function(response) {
+    vm.login = function(loginForm) {
+      if (loginForm.$valid) {
+        Auth.login({
+          email: vm.user.email,
+          password: vm.user.password
+        }).then(function() {
           Materialize.toast('Welcome back!', 3000); //jshint ignore:line
-          console.log(response);
+          $timeout(function() {
+            $location.path('/');
+          });
+        }).catch(function(err) {
+          vm.errors.other = err.message;
         });
+      }
     };
 
     /**
@@ -46,43 +39,15 @@
      *
      * @param {string} provider - (twitter, facebook, github, google)
      */
-    vm.authenticate = function(provider) {
-      vm.loggingIn = true;
-
-      /**
-       * Successfully authenticated
-       * Go to initially intended authenticated path
-       * @private
-       */
-      function _authSuccess(response) {
-        vm.loggingIn = false;
-
-        if ($rootScope.authPath) {
-          $location.path($rootScope.authPath);
-        }
-      }
-
-      /**
-       * Error authenticating
-       * @private
-       */
-      function _authCatch(response) {
-        Materialize.toast(response, 3000);
-        vm.loggingIn = 'error';
-        vm.loginMsg = '';
-      }
-
-      $auth.authenticate(provider)
-        .then(_authSuccess)
-        .catch(_authCatch);
+    vm.loginOauth = function(provider) {
+      $window.location.href = '/auth/' + provider;
     };
 
     /**
      * Log the user out of whatever authentication they've signed in with
      */
     vm.logout = function() {
-      $auth.logout('/login');
+      $location.path('/account/login');
     };
-
   }
 }());

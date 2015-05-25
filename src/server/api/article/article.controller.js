@@ -5,8 +5,8 @@ var _ = require('lodash');
 var async = require('async');
 var Article = require('./article.model'),
     User = require('../user/user.model');
-var utils = require('../../components/middleware')
-var extend = require('util')._extend
+//var utils = require('../../components/middleware')
+//var extend = require('util')._extend
 
 function handleError(res, err) {
       return res.status(500).json(err);

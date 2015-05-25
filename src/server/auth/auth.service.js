@@ -1,92 +1,122 @@
 'use strict';
-
+// jscs:disable
+// jshint ignore: start
 /**
  * Module for setting up the authentication service functions.
  * Utility and service methods for the authentication and authorization services
  * @module {object} auth:service
  */
-var config  = require('../config/environment'),
-    jwt     = require('jwt-simple'),
-    moment  = require('moment');
+var mongoose = require('mongoose');
+var passport = require('passport');
+var config = require('../config/environment');
+var jwt = require('jsonwebtoken');
+var moment = require('moment');
+var expressJwt = require('express-jwt');
+var compose = require('composable-middleware');
+var User = require('../api/user/user.model');
+var Roles = require('../api/roles/roles.model');
 
-module.exports = {
-
-  /**
-   * Middleware for checking for valid authentication
-   * @see {auth:service~ensureAuthenticated}
-   */
-  ensureAuthenticated: ensureAuthenticated,
-
-  /**
-   * Middleware for creating the token
-   * @see {auth:service~createToken}
-   */
-  createToken: createToken,
-
-  /**
-   * Determines if the user has admin ability or not.
-   * @type {Object}
-   */
-  ensureAdmin: ensureAdmin
-
-};
+var validateJwt = expressJwt({
+  secret: config.secrets.session
+});
 
 /**
  * Attaches the user object to the request if authenticated
- * otherwise returns 403
- * @return {express.middleware}
+ * Otherwise returns 403
  */
-function ensureAuthenticated(req, res, next) {
-  if (!req.headers.authorization) {
-    return res.status(401).send('Please make sure your' +
-      'request has an Authorization header');
-  }
-  var token = req.headers.authorization.split(' ')[1];
-  var payload = jwt.decode(token, config.secrets.session);
-  if (payload.exp <= moment().unix()) {
-    return res.status(401).send('Token has expired.');
-  }
-  req.user = payload.sub;
-  req.isAdmin = payload.role;
-  next();
+function isAuthenticated() {
+  return compose()
+    // Validate jwt
+    .use(function(req, res, next) {
+      // allow access_token to be passed through query parameter as well
+      if (req.query && req.query.hasOwnProperty('access_token') &&
+        typeof req.query.access_token === 'string') {
+        req.headers.authorization = 'Bearer ' + req.query.access_token;
+      }
+      validateJwt(req, res, next);
+    })
+    // Attach user to request
+    .use(function(req, res, next) {
+      User.findById(req.user._id, function(err, user) {
+        if (err) return next(err);
+        if (!user) return res.sendStatus(401);
+        if (!user.enabled) return res.sendStatus(401);
+        req.user = user;
+        next();
+      });
+    });
 }
 
 /**
- * Creates the JWT signed with secret
+ * Checks if the user role meets the minimum requirements of the route
  */
-function createToken(user) {
-  var payload = {
-    sub: user._id,
-    role: user.isAdmin,
-    iat: moment().unix(),
-    exp: moment().add(14, 'days').unix()
-  };
-  return jwt.encode(payload, config.secrets.session);
+function hasRole(roleRequired) {
+  if (!roleRequired) throw new Error('Required role needs to be set');
+
+  return compose()
+    .use(isAuthenticated())
+    .use(function meetsRequirements(req, res, next) {
+      if (config.userRoles.indexOf(req.user.role) >=
+        config.userRoles.indexOf(roleRequired)) {
+        next();
+      } else {
+        res.sendStatus(403);
+      }
+    });
 }
 
 /**
- * Make sure user is authenticated and is authorized as an administrator
+ * Checks if the user role has permission to use the route
  */
-function ensureAdmin(req, res, next) {
-  if (!req.headers.authorization) {
-    return res.status(401).send({
-      message: 'Please make sure your request has an Authorization header'
-    });
-  }
-  var token = req.headers.authorization.split(' ')[1];
-  var payload = jwt.decode(token, config.secrets.session);
-  if (payload.exp <= moment().unix()) {
-    return res.status(401).send({
-      message: 'Token has expired'
-    });
-  }
-  req.user = payload.sub;
-  req.isAdmin = payload.role;
+function hasPermission(permissionName) {
+  if (!permissionName) throw new Error('Required role needs to be set');
 
-  if (!req.isAdmin) {
-    return res.status(401).send({
-      message: 'Not authorized'
+  return compose()
+    .use(isAuthenticated())
+    .use(function roleHasPermission(req, res, next) {
+      Roles.findOne({
+        role: req.user.role
+      }, function(error, found) {
+        if (!found) {
+          res.sendStatus(403);
+          return false;
+        }
+        if (found.permissions[permissionName] ||
+            found.permissions['allPrivilages']) {
+          next();
+        } else {
+          res.sendStatus(403);
+        }
+      });
     });
-  }
-  next();
 }
+
+
+/**
+ * Returns a jwt token signed by the app secret
+ */
+function signToken(id) {
+  return jwt.sign({
+    _id: id
+  }, config.secrets.session, {
+    expiresInMinutes: moment().add(14, 'days').unix()
+  });
+}
+
+/**
+ * Set token cookie directly for oAuth strategies
+ */
+function setTokenCookie(req, res) {
+  if (!req.user) return res.status(404).json({
+    message: 'Something went wrong, please try again.'
+  });
+  var token = signToken(req.user._id, req.user.role);
+  res.cookie('token', JSON.stringify(token));
+  res.redirect('/');
+}
+
+exports.isAuthenticated = isAuthenticated;
+exports.hasRole = hasRole;
+exports.hasPermission = hasPermission;
+exports.signToken = signToken;
+exports.setTokenCookie = setTokenCookie;
