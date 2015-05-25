@@ -14,12 +14,12 @@ module.exports = function(app) {
   // Routes
   app.use('/api/v1/articles', require('./api/article'));
   app.use('/auth', require('./auth'));
-  //app.use('/api/v1/files', require('./api/file'));
+  app.use('/api/v1/files', require('./api/file'));
   //app.use('/api/progression', require('./api/progression'));
-  //app.use('/api/v1/resources', require('./api/resource'));
-  //app.use('/api/v1/recruitment', require('./api/recruitment'));
-  //app.use('/api/v1/roster', require('./api/roster'));
-  //app.use('/api/v1/slides', require('./api/slide'));
+  app.use('/api/v1/resources', require('./api/resource'));
+  app.use('/api/v1/recruitment', require('./api/recruitment'));
+  app.use('/api/v1/roster', require('./api/roster'));
+  app.use('/api/v1/slides', require('./api/slide'));
   app.use('/api/v1/users', require('./api/user'));
   //app.use('/api/v1/tags', require('./api/tag'));
 

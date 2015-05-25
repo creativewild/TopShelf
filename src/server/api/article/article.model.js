@@ -1,27 +1,12 @@
 'use strict';
 
-var mongoose = require('mongoose'),
-    Schema   = mongoose.Schema,
-    moment   = require('moment'),
-    _        = require('lodash');
+var mongoose   = require('mongoose'),
+    Schema     = mongoose.Schema,
+    validators = require('mongoose-validators'),
+    moment     = require('moment'),
+    _          = require('lodash');
 
-/**
- * Getters
- */
-
-var getTags = function (tags) {
-  return tags.join(',');
-};
-
-/**
- * Setters
- */
-
-var setTags = function (tags) {
-  return tags.split(',');
-};
-
-var articleSchema = new Schema({
+var ArticleSchema = new Schema({
   title: {
     type: String,
     trim: true,
@@ -60,11 +45,6 @@ var articleSchema = new Schema({
   slug: {
     type: String
   },
-  tags: {
-    type: [],
-    get: getTags,
-    set: setTags
-  },
   state: {
     type: String,
     default: 'Draft',
@@ -78,11 +58,7 @@ var articleSchema = new Schema({
   }
 });
 
-/**
- * Statics
- */
-
-articleSchema.statics = {
+ArticleSchema.statics = {
 
   /**
    * Find article by id
@@ -93,8 +69,8 @@ articleSchema.statics = {
    */
 
   load: function (id, cb) {
-    this.findOne({ _id : id })
-      .populate({path: 'User', select:'displayName email battletag'})
+    this.findOne({_id : id})
+      .populate({path: 'User', select:'username email'})
       .exec(cb);
   },
 
@@ -110,12 +86,10 @@ articleSchema.statics = {
     var criteria = options.criteria || {}
 
     this.find(criteria)
-      .populate({path: 'User', select:'displayName email battletag'})
+      .populate({path: 'User', select:'username email'})
       .sort({'createdAt': -1}) // sort by date
-      .limit(options.perPage)
-      .skip(options.perPage * options.page)
       .exec(cb);
   }
 }
 
-module.exports = mongoose.model('Article', articleSchema);
+module.exports = mongoose.model('Article', ArticleSchema);

@@ -14,5 +14,5 @@ var isAdmin = auth.ensureAdmin;
 
 router.get('/', controller.list);
 router.get('/:id', controller.show);
-router.post('/', isAdmin, controller.create);
-router.delete('/:id', isAdmin, controller.destroy);
+router.post('/', auth.hasPermission('editContent'), controller.create);
+router.delete('/:id', auth.hasPermission('editContent'), controller.destroy);

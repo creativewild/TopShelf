@@ -1,213 +1,71 @@
 /*jshint node:true*/
 'use strict';
 
-var _ = require('lodash');
-var async = require('async');
-var Article = require('./article.model'),
-    User = require('../user/user.model');
-//var utils = require('../../components/middleware')
-//var extend = require('util')._extend
+var _          = require('lodash'),
+    async      = require('async'),
+    Article    = require('./article.model'),
+    helpers    = require('../../components/helpers'),
+    CMS        = require('../../components/CMS'),
+    collection = new CMS(Article);
+
+var User = require('../user/user.model'); // Linked
 
 function handleError(res, err) {
-      return res.status(500).json(err);
-    }
+  return res.status(500).json(err);
+}
 
-exports.load = function (req, res, next, id){
-  var User = require('../user/user.model');
-
-  Article.load(id, function (err, article) {
-    if (err) return next(err);
-    if (!article) return next(err);
-    req.article = article;
-    next();
-  });
+collection.modifyBody = function(body) {
+  if (body && body.url && body.url.charAt(0) !== '/') {
+    body.url = '/' + body.url;
+  }
+  return body;
 };
-// Get list of articles
-exports.list = function(req, res) {
-  var page = (req.params.page > 0 ? req.params.page : 1) - 1;
-  var perPage = 30;
-  var options = {
-    perPage: perPage,
-    page: page
-  };
-Article.list(options, function (err, articles) {
-     if (err) {
-            return handleError(res, err);
-          }
-    Article.count().exec(function (err, count) {
- return res.status(200).json(articles);
-        });
-    });
 
+collection.modifyIdentifier = function(identifier) {
+  if (identifier && identifier.url && identifier.url.charAt(0) !== '/') {
+    identifier.url = '/' + identifier.url;
+  }
+  return identifier;
+};
+
+// Get list of articles
+exports.findAll = function(req, res) {
+  collection.findAll(req, res);
+};
+
+exports.find = function(req, res) {
+  collection.find(req, res);
+}
+
+exports.create = function(req, res) {
+  collection.create(req, res);
 };
 
 exports.read = function(req, res) {
   req.article.update({'$inc': {views: 1}}, {w: 1}, function() {});
   res.jsonp(req.article);
 };
-
-// Get a single post
-exports.show = function(req, res) {
-  Article.findById(req.params.id)
-      .populate('author', 'username')
-        .exec(function(err, article) {
-          if (err) {
-            return handleError(res, err);
-          }
-          if (!article) {
-            return res.sendStatus(404);
-          }
-          return res.status(200).json(article);
-        });
+// Updates pages in the database
+exports.update = function(req, res) {
+  collection.update(req, res);
 };
 
-/**
- * @api {post} /articles Create a new article
- * @apiVersion 0.1.0
- * @apiName createArticle
- * @apiDescription Create a new article in the database.
- * @apiGroup Article
- *
- * @apiParam {String} title Title of the article.
- * @apiParam {Date} date Date of creation.
- * @apiParam {String} slug Short name for the article.
- * @apiParam {String} description 140 character description of the article.
- * @apiParam {String} content The main portion of the article.
- * @apiParam {String} state Draft, Pushblished or Archived.
- */
-exports.createArticle = function(req, res) {
-  Article.create(_.merge({author: req.user._id}, req.body),
-    function(err, article) {
-    if (err) {
-      return handleError(res, err);
-    }
-    return res.status(201).json(article);
-  });
+// Deletes a pages from the DB.
+exports.delete = function(req, res) {
+  collection.delete(req, res);
 };
 
-// Updates an existing article in the DB.
-exports.updateArticle = function(req, res) {
-  Article.findById(req.params.id, function(err, article) {
-    if (err) {
-      return handleError(res, err);
-    }
-    if (!article) {
-      return res.sendStatus(404);
-    }
-
-    // set the new user information if it exists in the request
-    if (req.body.title) article.title = req.body.title;
-    if (req.body.date) article.date = req.body.date;
-    if (req.body.lastUpdated) article.lastUpdated = req.body.date;
-    if (req.body.slug) article.slug = req.body.slug;
-    if (req.body.description) article.description = req.body.description;
-    if (req.body.content) article.content = req.body.content;
-    if (req.body.state) article.state = req.body.state;
-    if (req.body.tags) article.tags = req.body.tags;
-    if (req.body.image) article.image = req.body.image;
-    if (req.body.lrgImage) article.lrgImage = req.body.lrgImage;
-    if (req.body.views) article.views = req.body.views;
-
-    article.save(function(err) {
-      if (err) {
-        return handleError(res, err);
-      }
-      return res.status(200).json(article);
-    });
-  });
+// Get a single pages
+exports.findById = function(req, res) {
+  collection.findById(req, res);
 };
 
-// Deletes a article from the DB.
-exports.destroy = function(req, res) {
-  Article.findById(req.params.id, function(err, article) {
-    if (err) {
-      return handleError(res, err);
-    }
-    if (!article) {
-      return res.sendStatus(404);
-    }
-    article.remove(function(err) {
-      if (err) {
-        return handleError(res, err);
-      }
-      return res.sendStatus(204);
-    });
-  });
-};
-// TODO: Broken get by author
-exports.getListByAuthor = function(req, res, next, author) {
-  return User.findOne({
-    author: author
-  }).exec(function(err, user) {
-    if (err) {
-      return next(new Error('Find user(' + author + ') failed: ' + err));
-    } else if (!user) {
-      res.statusCode = 404;
-      return res.end();
-    } else {
-      return Article.find({
-        author: req.user._id,
-        Status: 'Published'
-      }).populate('author', 'displayName')
-                .sort('-created').exec(function(err, articles) {
-                  if (err) {
-                    return next(new Error(
-                      'Failed to load articles of author(' +
-                        author + '): ' + err));
-                  } else {
-                    req.articles = articles;
-                    return next();
-                  }
-                });
-    }
-  });
-};
-// TODO: Broken get by tag
-exports.getListByTag = function(req, res, next, tagName) {
-  return Tag.find({
-    TagName: tagName
-  }).populate('Article').exec(function(err, tags) {
-    var index, t, _i, _len;
-    if (err) {
-      return next(new Error('Find tag(' + tagName + ') failed: ' + err));
-    } else if (!tags || tags.length === 0) {
-      res.statusCode = 404;
-      return res.end();
-    } else {
-      for (index = _i = 0, _len = tags.length; _i < _len; index = ++_i) {
-        t = tags[index];
-        if (t.Article.Status !== 'Published') {
-          tags.splice(index, 1);
-        }
-      }
-      return async.map(tags, function (tag, callback) {
-        return tag.Article.populate('author tags', 'name tagName',
-                    function(err, article) {
-                      if (err) {
-                        return callback(err);
-                      } else {
-                        return callback(null, article);
-                      }
-                    });
-      }), function(err, articles) {
-        if (err) {
-          return next(err);
-        } else {
-          req.articles = articles;
-          return next();
-        }
-      };
-    }
-  });
+// Updates an existing page in the DB.
+exports.updateById = function(req, res) {
+  collection.updateById(req, res);
 };
 
-Array.prototype.unique = function() {
-  var key, output, _i, _ref, _results;
-  output = {};
-  _results = [];
-  for (key = _i = 0, _ref = this.length; 0 <= _ref ? _i < _ref : _i > _ref;
-    key = 0 <= _ref ? ++_i : --_i) {
-    _results.push(output[this[key]] = this[key]);
-  }
-  return _results;
+// Deletes a pages from the DB.
+exports.deleteById = function(req, res) {
+  collection.deleteById(req, res);
 };
